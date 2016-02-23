@@ -1,0 +1,15 @@
+/target/
+/project/*/
+
+# IntelliJ IDEA
+#
+/.idea/
+
+# OS X 
+#
+# Note: Everyone should have this in their global git ignore. But they likely won't.
+#
+.DS_Store/
+
+# Temporary
+src/main/scala/sample/
