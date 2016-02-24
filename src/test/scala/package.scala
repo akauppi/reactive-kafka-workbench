@@ -1,4 +1,7 @@
-import akka.stream.scaladsl.Source
+import akka.actor.ActorSystem
+import akka.stream.scaladsl.Sink
+
+import scala.util.Failure
 
 // Joined configuration (and tools) for all approaches
 
@@ -10,12 +13,15 @@ package object test {
     Array.fill(100) { scala.util.Random.nextInt(1000) }
   }
 
-  /*** disabled
-  def testDataSource: Source[Int,_] = {
-    val arr = Array.fill(100) {
-      scala.util.Random.nextInt(1000)
-    }
-    Source(arr toVector)
+  def shutdownAsOnComplete[T](implicit as: ActorSystem) = Sink.onComplete[T] {
+    case Failure(ex) =>
+      println("Stream finished with error")
+      ex.printStackTrace()
+      as.terminate()
+      println("Terminate AS.")
+    case _ =>
+      println("Stream finished successfully")
+      as.terminate()
+      println("Terminate AS.")
   }
-  ***/
 }

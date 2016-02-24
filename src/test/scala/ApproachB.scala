@@ -10,8 +10,16 @@ import org.scalatest.{FlatSpec, Matchers}
 import org.apache.kafka.common.serialization._
 import java.util.UUID
 
+import scala.collection.mutable.ArrayBuffer
+
+/*
+* Approach following what's on the front page of reactive-kafka GitHub Repo:
+*   -> https://github.com/softwaremill/reactive-kafka#example-usage
+*
+* Note: I don't actually want to deal with the 'Subscriber' and 'Producer' stuff. Just give me streams,
+*       'Source', 'Flow' and 'Sink'. AKa230216
+*/
 class ApproachB extends FlatSpec with Matchers {
-  import ApproachB._
 
   implicit val actorSystem = ActorSystem("ApproachB")
   implicit val materializer = ActorMaterializer()
@@ -32,12 +40,10 @@ class ApproachB extends FlatSpec with Matchers {
 
   it should "Be able to write to Kafka" in {
 
-    // tbd. What does the term 'Subscriber' here really mean? AKa230216
-    //
     val subscriber: Subscriber[StringProducerMessage] = kafka.publish( ProducerProperties(
       bootstrapServers = host,
       topic = topic,
-      valueSerializer = new StringSerializer()
+      valueSerializer = new StringSerializer
     ))
 
     val graph: RunnableGraph[_] = dataSource
@@ -46,44 +52,32 @@ class ApproachB extends FlatSpec with Matchers {
 
     graph.run()
 
-    println("Written data to Kafka")
-
     // tbd. Should we wait here?
+
+    println("Written data to Kafka")
   }
 
-  it should "Be able to read from Kafka" ignore /*in*/ {
+  it should "Be able to read from Kafka" in {
 
-    val publisher: Publisher[StringConsumerRecord] = kafka.consume(ConsumerProperties(
+    val publisher: Publisher[StringConsumerRecord] = kafka.consume( ConsumerProperties(
       bootstrapServers = host,
       topic = topic,
       groupId = consumerGroupId,
-      valueDeserializer = new StringDeserializer()
+      valueDeserializer = new StringDeserializer
     ))
 
-    Source.fromPublisher(publisher).runForeach(println)
+    var received = new ArrayBuffer[Int]
+
+    Source.fromPublisher(publisher).runForeach( x => {
+      val v: Int = x.value.toInt
+      println(v)
+      received += v
+    })
 
     // tbd. How to best wait here until we've gotten the data (e.g. 'data.length' values)? AKa230216
 
-    // tbd. Compare that the output is same as 'testData'
+    received should contain theSameElementsInOrderAs(data)
 
     println("Read data from Kafka")
   }
-}
-
-
-object ApproachB {
-
-  /***
-  def shutdownAsOnComplete[T](implicit as: ActorSystem) = Sink.onComplete[T] {
-    case Failure(ex) =>
-      println("Stream finished with error")
-      ex.printStackTrace()
-      as.terminate()
-      println("Terminate AS.")
-    case _ =>
-      println("Stream finished successfully")
-      as.terminate()
-      println("Terminate AS.")
-  }
-  ***/
 }

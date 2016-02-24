@@ -54,3 +54,18 @@ $ sbt test
 ## References
 
 - [reactive-kafka](https://github.com/softwaremill/reactive-kafka) - using Kafka as Akka Streams in Scala
+- [Using Kafka Command-line Tools](http://www.cloudera.com/documentation/kafka/latest/topics/kafka_command_line.html)
+
+---
+
+## Debugging helps
+
+To use Kafka from the command line:
+
+```
+$ kafka-topics --zookeeper localhost:2181 --list
+```
+
+```
+$ kafka-topics --zookeeper localhost:2181 --list
+```
