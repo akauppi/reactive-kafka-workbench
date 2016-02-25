@@ -19,7 +19,7 @@ import scala.collection.mutable.ArrayBuffer
 * Note: I don't actually want to deal with the 'Subscriber' and 'Producer' stuff. Just give me streams,
 *       'Source', 'Flow' and 'Sink'. AKa230216
 */
-class ApproachB extends FlatSpec with Matchers {
+class ApproachBTest extends FlatSpec with Matchers {
 
   implicit val actorSystem = ActorSystem("ApproachB")
   implicit val materializer = ActorMaterializer()
@@ -38,7 +38,7 @@ class ApproachB extends FlatSpec with Matchers {
   //---
   behavior of "Approach B"
 
-  it should "Be able to write to Kafka" in {
+  it should "Be able to write to Kafka" ignore /*in*/ {
 
     val subscriber: Subscriber[StringProducerMessage] = kafka.publish( ProducerProperties(
       bootstrapServers = host,
@@ -54,10 +54,14 @@ class ApproachB extends FlatSpec with Matchers {
 
     // tbd. Should we wait here?
 
-    println("Written data to Kafka")
+    println("Written data to Kafka - waiting...")
+
+    Thread.sleep(10000) // ms
+
+    println("Wait passed")
   }
 
-  it should "Be able to read from Kafka" in {
+  it should "Be able to read from Kafka" ignore /*in*/ {
 
     val publisher: Publisher[StringConsumerRecord] = kafka.consume( ConsumerProperties(
       bootstrapServers = host,

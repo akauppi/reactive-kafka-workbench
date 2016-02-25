@@ -1,7 +1,7 @@
 package test
 
 import akka.actor.ActorSystem
-import akka.stream.{SourceShape, ActorMaterializer}
+import akka.stream.{ActorMaterializerSettings, SourceShape, ActorMaterializer}
 import akka.stream.scaladsl.{Flow, GraphDSL, Sink, Source}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.scalatest.{FlatSpec, Matchers}
@@ -20,10 +20,7 @@ import scala.concurrent.duration._
 *   -> https://github.com/softwaremill/reactive-kafka/blob/master/core/src/main/scala/com/softwaremill/react/kafka2/DummyProducer.scala
 *   -> https://github.com/softwaremill/reactive-kafka/blob/master/core/src/main/scala/com/softwaremill/react/kafka2/DummyConsumer.scala
 */
-class ApproachA extends FlatSpec with Matchers {
-
-  implicit val actorSystem = ActorSystem("ApproachA")
-  implicit val materializer = ActorMaterializer()
+class ApproachATest extends FlatSpec with Matchers {
 
   val topic = UUID.randomUUID.toString   // e.g. "d8a630f0-093e-4022-b6f4-8fb1d8215f58"
 
@@ -36,21 +33,48 @@ class ApproachA extends FlatSpec with Matchers {
 
   it should "Be able to write to Kafka" in {
 
+    implicit val actorSystem = ActorSystem("ApproachA_write")
+    implicit val materializer = ActorMaterializer(
+      ActorMaterializerSettings(actorSystem)
+        //.withAutoFusing(true)       // Akka Streams: fusing multiple stages together (on same actor) or not (no functional difference!)
+        //.withInputBuffer(1024,1024)   // Akka Streams: input buffer size (only first value currently (2.4.2) matters; is the initial size)
+    )
+
     val keySerializer = new ByteArraySerializer // Note: no idea why this, reactive-kafka 'DummyProducer' sample uses it
     val valSerializer = new IntegerSerializer
 
-    val prov = ProducerProvider(host, keySerializer, valSerializer)
+    val producerSink = Producer.sink( ProducerProvider(host, keySerializer, valSerializer) )
 
-    Source(data toVector)
+    var count=0;
+
+    Source
+      .fromIterator(() => data.toIterator)
       .map(new java.lang.Integer(_))
       .via(Producer.value2record(topic))      // converts to 'ProducerRecord[Array[Byte], V]' (note: if using keys, replace this with our own, explicit mapping)
-      .via(Producer(prov))                    // Q: this the place that actually writes to Kafka?
-      .mapAsync(1)(identity)                  // Q: what does this do?
-      .to(shutdownAsOnComplete)               // Q: and this?
+      //.via(producer)                          // Q: this the place that actually writes to Kafka?
+      //.mapAsync(1)(identity)                  // Q: what does this do? (it's an Akka Streams thing)
+      //.to(shutdownAsOnComplete)               // clean up the actor system, when stream is ready
+      .map( x => { println(x.value); count++; x } )
+      .to(producerSink)
       .run()
+
+    // Note: In the above, only the first integer gets processed. Why?? AKa250216
+
+    Thread.sleep(5000)
+
+    // tbd. Should we wait here - are the things now in Kafka?
+
+    count should be (data.length)
   }
 
-  it should "Be able to read from Kafka" in {
+  it should "Be able to read from Kafka" ignore /*in*/ {
+
+    implicit val actorSystem = ActorSystem("ApproachA_read")
+    implicit val materializer = ActorMaterializer(
+      ActorMaterializerSettings(actorSystem)
+          .withAutoFusing(false)
+          .withInputBuffer(16,16)
+    )
 
     val keyDeserializer = new ByteArrayDeserializer
     val valDeserializer = new IntegerDeserializer
@@ -69,7 +93,7 @@ class ApproachA extends FlatSpec with Matchers {
 
       val dummyProcessor = Flow[In].map { x =>    // tbd. probably way to make this without 'map' (i.e. run a 'Unit' producing function for its side effects)
         val v: Int = x.value.toInt
-        Thread.sleep(100)
+        Thread.sleep(1000)    // ms
         println(v)
         received += v
         x

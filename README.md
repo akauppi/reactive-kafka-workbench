@@ -69,3 +69,8 @@ $ kafka-topics --zookeeper localhost:2181 --list
 ```
 $ kafka-topics --zookeeper localhost:2181 --list
 ```
+
+```
+$ kafka-console-consumer.sh  --zookeeper localhost:2181 --topic XXX --from-beginning
+```
+
