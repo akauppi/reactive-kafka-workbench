@@ -59,30 +59,37 @@ class ApproachATest extends FlatSpec with Matchers {
 
     Source.fromIterator(() => data.toIterator)
       .map(new java.lang.Integer(_))
+      .map( x => {
+        println(s"A: $x"); x
+      } )
       .via(Producer.value2record(topic))      // converts to 'ProducerRecord[Array[Byte], V]' (note: if using keys, replace this with our own, explicit mapping)
+      .map( x => {
+        val v = x.value.toInt
+        println(s"B: $v"); x
+      } )
       .via(producer)                          // actually writes to Kafka (passes on a Future for success)
       .mapAsync(1)(identity)                  // waits for the Future, so one more value is pushed (an Akka Streams thing)
       .map( x => {
         val v: Int = x._1.value     // tbd. not sure why 'x' is a tuple
-        println(v); count += 1; x
+        println(s"C: $v"); count += 1; x
       } )
       .to(shutdownAsOnComplete)               // clean up the actor system, when stream is ready
       .run()
 
-    Thread.sleep(5000)
+    //Thread.sleep(5000)
 
     count should be (data.length)   // BUG: Gives "0 was not equal to 100"
 
     println("Written to Kafka")
   }
 
-  it should "Be able to read from Kafka" ignore /*in*/ {
+  it should "Be able to read from Kafka" in {
 
     implicit val actorSystem = ActorSystem("ApproachA_read")
     implicit val materializer = ActorMaterializer(
       ActorMaterializerSettings(actorSystem)
           //.withAutoFusing(false)
-          .withInputBuffer(16,16)
+          //.withInputBuffer(16,16)
     )
 
     val keyDeserializer = new ByteArrayDeserializer
@@ -112,7 +119,7 @@ class ApproachATest extends FlatSpec with Matchers {
     Consumer.source(prov)
       .map( x => x.value.toInt )
       .to( Sink.foreach({ v =>
-        received += v
+        received += v     // BUG: does not get here a single time!
       }))
       .run()
 
