@@ -47,13 +47,11 @@ class ApproachATest extends FlatSpec with Matchers {
     // Ref.
     //    Producer Configs -> http://kafka.apache.org/documentation.html#producerconfigs
     //
-    // BUG. No matter *what* I do, the loop runs through, without writing all 100. ,< AKa250216
-    //
     val producer = Producer(
       ProducerProvider(host, keySerializer, valSerializer)
         .props(
-          //"acks" -> "1",          // let Kafka server acknowledge receiving each entry
-          //"batch.size" -> "0"     // no batching (trying to be synchronous, for testing, but there's no switch for that, any more?)
+          "acks" -> "1",          // let Kafka server acknowledge receiving each entry
+          "batch.size" -> "0"     // no batching (trying to be synchronous, for testing, but there's no switch for that, any more?)
         )
     )
 
@@ -73,7 +71,7 @@ class ApproachATest extends FlatSpec with Matchers {
 
     Thread.sleep(5000)
 
-    count should be (data.length)
+    count should be (data.length)   // BUG: Gives "0 was not equal to 100"
 
     println("Written to Kafka")
   }
