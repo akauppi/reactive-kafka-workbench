@@ -4,15 +4,14 @@ import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializerSettings, SourceShape, ActorMaterializer}
 import akka.stream.scaladsl.{Flow, GraphDSL, Sink, Source}
 import com.softwaremill.react.kafka.{ReactiveKafka, ConsumerProperties}
+import com.softwaremill.react.kafka2._
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.scalatest.{FlatSpec, Matchers}
 import org.apache.kafka.common.serialization._
-import com.softwaremill.react.kafka2._
+import com.softwaremill.react.kafka._
 import java.util.UUID
 
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.Await
 import scala.concurrent.duration._
 
 /*
@@ -40,40 +39,43 @@ class ApproachATest extends FlatSpec with Matchers {
     implicit val actorSystem = ActorSystem("ApproachA_write")
     implicit val materializer = ActorMaterializer(
       ActorMaterializerSettings(actorSystem)
-        //.withAutoFusing(true)       // Akka Streams: fusing multiple stages together (on same actor) or not (no functional difference!)
-        //.withInputBuffer(1024,1024)   // Akka Streams: input buffer size (only first value currently (2.4.2) matters; is the initial size)
     )
 
     val keySerializer = new ByteArraySerializer // Note: no idea why this, reactive-kafka 'DummyProducer' sample uses it
     val valSerializer = new IntegerSerializer
 
-    val producerSink = Producer.sink(
+    // Ref.
+    //    Producer Configs -> http://kafka.apache.org/documentation.html#producerconfigs
+    //
+    // BUG. No matter *what* I do, the loop runs through, without writing all 100. ,< AKa250216
+    //
+    val producer = Producer(
       ProducerProvider(host, keySerializer, valSerializer)
         .props(
-          "acks" -> "1"                  // let Kafka server acknowledge receiving each entry
+          //"acks" -> "1",          // let Kafka server acknowledge receiving each entry
+          //"batch.size" -> "0"     // no batching (trying to be synchronous, for testing, but there's no switch for that, any more?)
         )
     )
 
     var count=0
 
-    Source
-      .fromIterator(() => data.toIterator)
+    Source.fromIterator(() => data.toIterator)
       .map(new java.lang.Integer(_))
       .via(Producer.value2record(topic))      // converts to 'ProducerRecord[Array[Byte], V]' (note: if using keys, replace this with our own, explicit mapping)
-      //.via(producer)                          // Q: this the place that actually writes to Kafka?
-      //.mapAsync(1)(identity)                  // Q: what does this do? (it's an Akka Streams thing)
-      //.to(shutdownAsOnComplete)               // clean up the actor system, when stream is ready
-      .map( x => { println(x.value); count += 1; x } )
-      .to(producerSink)
+      .via(producer)                          // actually writes to Kafka (passes on a Future for success)
+      .mapAsync(1)(identity)                  // waits for the Future, so one more value is pushed (an Akka Streams thing)
+      .map( x => {
+        val v: Int = x._1.value     // tbd. not sure why 'x' is a tuple
+        println(v); count += 1; x
+      } )
+      .to(shutdownAsOnComplete)               // clean up the actor system, when stream is ready
       .run()
-
-    // Note: In the above, only the first integer gets processed. Why?? AKa250216
 
     Thread.sleep(5000)
 
-    // tbd. Should we wait here - are the things now in Kafka?
-
     count should be (data.length)
+
+    println("Written to Kafka")
   }
 
   it should "Be able to read from Kafka" ignore /*in*/ {
@@ -100,14 +102,32 @@ class ApproachATest extends FlatSpec with Matchers {
     )
       .commitInterval(5 seconds)
 
-    val consumerWithOffsetSink = kafka.consumeWithOffsetSink(consumerProps)
+    // Ref.
+    //    New Consumer Configs -> http://kafka.apache.org/documentation.html#newconsumerconfigs
+    //
+    val prov = ConsumerProvider(host, keyDeserializer, valDeserializer)
+      .setup( TopicSubscription(topic) )
+      .groupId(consumerGroupId)
+      //.autoCommit(true)
+      //.props("auto.offset.reset" -> "earliest")   // tbd. what's the purpose of this?
 
-    Source.fromPublisher(consumerWithOffsetSink.publisher)
-      .map( x => {
-        val v= x.value.toInt; println(v); received += v; x
-      })
-      .to(consumerWithOffsetSink.offsetCommitSink) // stream back for commit
+    Consumer.source(prov)
+      .map( x => x.value.toInt )
+      .to( Sink.foreach({ v =>
+        received += v
+      }))
       .run()
+
+  /***
+    * val consumerWithOffsetSink = kafka.consumeWithOffsetSink(consumerProps)
+
+    * Source.fromPublisher(consumerWithOffsetSink.publisher)
+    * .map( x => {
+    * val v= x.value.toInt; println(v); received += v; x
+    * })
+    * .to(consumerWithOffsetSink.offsetCommitSink) // stream back for commit
+    * .run()
+    ***/
 
     /***
       * val prov = ConsumerProvider(host, keyDeserializer, valDeserializer)
