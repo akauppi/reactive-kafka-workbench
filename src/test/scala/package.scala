@@ -10,7 +10,8 @@ package object test {
   val consumerGroupId = "sample"
 
   def testData: Seq[Int] = {
-    Array.fill(100) { scala.util.Random.nextInt(1000) }
+    //Array.fill(100) { scala.util.Random.nextInt(1000) }
+    (1 to 100).toSeq
   }
 
   def shutdownAsOnComplete[T](implicit as: ActorSystem) = Sink.onComplete[T] {
