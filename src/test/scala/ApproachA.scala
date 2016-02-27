@@ -32,8 +32,11 @@ class ApproachATest extends FlatSpec with Matchers {
   //---
   behavior of "Approach A"
 
-  //merged to one scenario to be sure in order of execution
-  it should "Be able to read data that was written in kafka" in {
+  info(data.mkString(","))
+
+  // Note: Both write and read in the same test, so they are run in sequence.
+  //
+  it should "be able to write to Kafka and read the same data back" in {
 
     {
       implicit val actorSystem = ActorSystem("ApproachA_write")
@@ -61,6 +64,7 @@ class ApproachATest extends FlatSpec with Matchers {
       actorSystem.terminate()
       println("Written to Kafka")
     }
+
     {
       implicit val actorSystem = ActorSystem("ApproachA_read")
       implicit val materializer = ActorMaterializer(
@@ -78,14 +82,13 @@ class ApproachATest extends FlatSpec with Matchers {
 
       val receivedFuture = Consumer
         .source(prov)
-        .take(100) // this is dirty and will not catch situation when we publish 200 messages instead of 100. But the nature of kafka does not support end of stream
+        .take( data.length )  // nature of kafka does not support end of stream
         .map(x => x.value.toInt)
         .toMat(Sink.fold(Seq.empty[Int])(_ :+ _))(Keep.right)
         .run()
 
       val received = Await.result(receivedFuture, 10 seconds)
 
-      println(received)
       actorSystem.terminate()
 
       received shouldBe data
