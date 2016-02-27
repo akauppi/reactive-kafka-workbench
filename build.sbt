@@ -13,10 +13,9 @@ scalacOptions ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  // We want to use the "New API" and it's only in '0.9.1-SNAPSHOT' (not '0.10.0' release). All this is VERY WEIRD
-  // and confusing. Maybe we shouldn't use "reactive-kafka" at all, but do our own on top of Kafka Java API. AKa250216
+  // We want to use the "New API" and it's only in snapshots (not stable versions, for now). 
   //
-  "com.softwaremill.reactivekafka" %% "reactive-kafka-core" % "0.10.0-SNAPSHOT",   // NOTE: 0.9.1-SNAPSHOT needs to be built & 'sbt publishLocal'ed locally
+  "com.softwaremill.reactivekafka" %% "reactive-kafka-core" % "0.10.0-SNAPSHOT",
   //
   "org.scalatest" %% "scalatest" % "2.2.4" % Test
 )
